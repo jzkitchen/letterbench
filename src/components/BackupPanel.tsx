@@ -9,6 +9,7 @@ import {
 import { repo } from "../lib/db";
 import { messageOf } from "../lib/format";
 import { readPrefs, writePrefs } from "../lib/prefs";
+import { pushLocalIfPossible } from "../lib/sync-client";
 
 export function BackupPanel({ onRestored }: { onRestored: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -65,6 +66,7 @@ export function BackupPanel({ onRestored }: { onRestored: () => void }) {
         await store.replaceAll(plan.replaceSets ? plan.sets : sets, plan.replaceSessions ? plan.sessions : sessions);
       }
       if (plan.settings) writePrefs(plan.settings);
+      await pushLocalIfPossible();
       setPlan(null);
       setStatus("Backup restored on this device.");
       onRestored();

@@ -4,6 +4,7 @@ import { Shell } from "../components/Shell";
 import { repo } from "../lib/db";
 import { messageOf } from "../lib/format";
 import { createId } from "../lib/ids";
+import { pushLocalIfPossible } from "../lib/sync-client";
 
 export function NewSetPage() {
   const navigate = useNavigate();
@@ -31,6 +32,7 @@ export function NewSetPage() {
             };
             const store = await repo();
             await store.saveSet(set);
+            await pushLocalIfPossible();
             await navigate(`/sets/${set.id}`);
             return null;
           } catch (error) {

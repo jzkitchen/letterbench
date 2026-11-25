@@ -1,0 +1,16 @@
+# Letterbench online store.
+# Deploy from this directory: npx wrangler deploy
+# Do not put the family password or store contents in this file.
+# Set the password later with: npx wrangler secret put FAMILY_PASSWORD
+
+name = "letterbench-api"
+main = "src/index.ts"
+compatibility_date = "2026-11-25"
+account_id = "87b035160621196eced735d890ce9b57"
+
+# Create the namespace first, then paste its id here:
+#   npx wrangler kv namespace create letterbench-store
+# Suggested title: letterbench-store
+[[kv_namespaces]]
+binding = "STORE"
+id = "REPLACE_AFTER_KV_CREATE"
