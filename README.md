@@ -88,24 +88,13 @@ Reads are public. Writes send the header `X-Family-Password`. The Worker compare
 
 If this device is empty, the public copy is loaded automatically. If both sides have changes, nothing is overwritten until you choose **Refresh from online** or **Upload this device**.
 
-The Worker URL defaults to `https://letterbench-api.<account-subdomain>.workers.dev`. After deploy, set `VITE_LETTERBENCH_API` for the Pages build, or replace the placeholder in `src/lib/api-config.ts`.
+The Worker URL defaults to `https://letterbench-api.eyeshadow-lee.workers.dev`. Set `VITE_LETTERBENCH_API` to point a build at a different Worker.
 
-### Deploy the Worker
+### Worker
 
-From `worker/`, with Wrangler logged into the connected Cloudflare account:
+`letterbench-api` is already deployed. Public reads are at `https://letterbench-api.eyeshadow-lee.workers.dev`. The KV namespace `letterbench-store` already exists; `worker/wrangler.toml` binds it as `STORE` with id `1af14f4ad2ca4bb28bd5b84cd42cbb76`.
 
-```bash
-npx wrangler kv namespace create letterbench-store
-```
-
-Paste the printed id into `worker/wrangler.toml` as the `STORE` binding (`id = "REPLACE_AFTER_KV_CREATE"` today). Then:
-
-```bash
-npx wrangler secret put FAMILY_PASSWORD
-npx wrangler deploy
-```
-
-Do not commit the password, the KV contents, or a filled-in secret. The account id in `wrangler.toml` is the connected account. CORS allows `https://jzkitchen.github.io`.
+`FAMILY_PASSWORD` is set with `npx wrangler secret put FAMILY_PASSWORD` or in the Cloudflare dashboard. Never commit the password, a token, or the store contents. CORS allows `https://jzkitchen.github.io`.
 
 ## Develop
 

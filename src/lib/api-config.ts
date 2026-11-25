@@ -1,5 +1,5 @@
-/** Replace the subdomain, or set VITE_LETTERBENCH_API, after the Worker is deployed. */
-export const WORKER_URL_PLACEHOLDER = "https://letterbench-api.<account-subdomain>.workers.dev";
+/** Deployed Worker. Override with VITE_LETTERBENCH_API when needed. */
+export const WORKER_URL_PLACEHOLDER = "https://letterbench-api.eyeshadow-lee.workers.dev";
 
 export const PASSWORD_HEADER = "X-Family-Password";
 
