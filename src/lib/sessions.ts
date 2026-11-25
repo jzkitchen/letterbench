@@ -90,6 +90,12 @@ export function applyAttempt(session: Session, input: AttemptRequest, now = new 
   };
 }
 
+function byNewest(left: { updatedAt: string; createdAt: string }, right: { updatedAt: string; createdAt: string }): number {
+  const updated = right.updatedAt.localeCompare(left.updatedAt);
+  if (updated !== 0) return updated;
+  return right.createdAt.localeCompare(left.createdAt);
+}
+
 export function summarize(sets: DictationSet[], sessions: Session[]): HomeData {
   const inProgress = sessions
     .filter((session) => session.finishedAt == null)
@@ -102,8 +108,7 @@ export function summarize(sets: DictationSet[], sessions: Session[]): HomeData {
     }))
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 
-  const collections = sets
-    .map((set) => {
+  const collections = [...sets].sort(byNewest).map((set) => {
       const latest = sessions
         .filter((session) => session.setId === set.id && session.finishedAt)
         .sort((left, right) => (right.finishedAt ?? "").localeCompare(left.finishedAt ?? ""))[0];
@@ -115,8 +120,7 @@ export function summarize(sets: DictationSet[], sessions: Session[]): HomeData {
         lastCorrect: latest ? latest.attempts.filter((attempt) => attempt.correct).length : null,
         lastTotal: latest ? latest.items.length : null,
       };
-    })
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    });
 
   const recent = sessions
     .filter((session): session is Session & { finishedAt: string } => session.finishedAt != null)
