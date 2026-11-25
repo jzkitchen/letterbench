@@ -43,4 +43,30 @@ describe("sessions", () => {
     expect(home.collections[0]).toMatchObject({ lastCorrect: 2, lastTotal: 2, itemCount: 2 });
     expect(home.recent[0]).toMatchObject({ correctCount: 2, itemCount: 2, totalMs: 3000 });
   });
+
+  it("lists sets newest first, using createdAt when updatedAt matches", () => {
+    const editedLater = {
+      ...set,
+      id: "edited",
+      title: "Edited",
+      createdAt: "2026-11-01T00:00:00.000Z",
+      updatedAt: "2026-11-25T12:00:00.000Z",
+    };
+    const createdSameDay = {
+      ...set,
+      id: "same-day",
+      title: "Same day",
+      createdAt: "2026-11-20T08:00:00.000Z",
+      updatedAt: "2026-11-20T08:00:00.000Z",
+    };
+    const createdEarlierSameUpdate = {
+      ...set,
+      id: "earlier",
+      title: "Earlier",
+      createdAt: "2026-11-10T08:00:00.000Z",
+      updatedAt: "2026-11-20T08:00:00.000Z",
+    };
+    const home = summarize([createdEarlierSameUpdate, createdSameDay, editedLater], []);
+    expect(home.collections.map((item) => item.id)).toEqual(["edited", "same-day", "earlier"]);
+  });
 });
