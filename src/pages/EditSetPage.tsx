@@ -5,7 +5,7 @@ import { Loading, Shell } from "../components/Shell";
 import { repo } from "../lib/db";
 import { messageOf } from "../lib/format";
 import { createId } from "../lib/ids";
-import { pushLocalIfPossible } from "../lib/sync-client";
+import { syncNow } from "../lib/sync-client";
 import type { DictationSet } from "../lib/types";
 
 export function EditSetPage() {
@@ -62,7 +62,7 @@ export function EditSetPage() {
                 updatedAt: new Date().toISOString(),
                 items: lines.map((body) => ({ id: createId(), body })),
               });
-              await pushLocalIfPossible();
+              await syncNow();
               await navigate(`/sets/${set.id}`);
               return null;
             } catch (reason) {

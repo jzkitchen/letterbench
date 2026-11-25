@@ -7,7 +7,7 @@ import { repo } from "../lib/db";
 import { messageOf } from "../lib/format";
 import { readPrefs, writePrefs } from "../lib/prefs";
 import { createSession } from "../lib/sessions";
-import { pushLocalIfPossible, schedulePush } from "../lib/sync-client";
+import { scheduleSync, syncNow } from "../lib/sync-client";
 import { cancelSpeech, chooseVoice, speak, voiceNote } from "../lib/speech";
 import type { DictationSet, Prefs } from "../lib/types";
 import { useVoices } from "../lib/useVoices";
@@ -53,7 +53,7 @@ export function SetPage() {
   function updatePrefs(next: Prefs) {
     setPrefs(next);
     writePrefs(next);
-    schedulePush();
+    scheduleSync();
   }
 
   const chosen = set && selected ? set.items.filter((item) => selected.has(item.id)) : [];
@@ -66,7 +66,7 @@ export function SetPage() {
       const session = createSession(set, chosen.map((item) => item.id), prefs);
       const store = await repo();
       await store.saveSession(session);
-      await pushLocalIfPossible();
+      await syncNow();
       await navigate(`/practice/${session.id}`);
     } catch (reason) {
       setError(messageOf(reason));
@@ -78,7 +78,7 @@ export function SetPage() {
     try {
       const store = await repo();
       await store.deleteSet(setId);
-      await pushLocalIfPossible();
+      await syncNow();
       await navigate("/");
     } catch (reason) {
       setError(messageOf(reason));

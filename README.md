@@ -4,7 +4,7 @@ English dictation. Listen to a word or sentence, then tap the letters.
 
 **Live site:** https://jzkitchen.github.io/letterbench/
 
-The app is a static PWA. Sets, in-progress sessions, results, and voice settings stay on this device. A family password can also copy that same backup to an online store. A sample round is never saved.
+The app is a static PWA. Sets, in-progress sessions, results, and voice settings stay on this device and sync automatically with the online store. A sample round is never saved.
 
 ## Import a backup
 
@@ -84,17 +84,17 @@ The home set list is newest first: `updatedAt`, then `createdAt`.
 
 ## Online copy
 
-Reads are public. Writes send the header `X-Family-Password`. The Worker compares it with the `FAMILY_PASSWORD` secret. The app asks for that password only when copying a change online, and can remember it on this device. It is not part of the backup file.
+Opening the site, or returning to it, refreshes from the online store. Local edits upload on their own. Reads and writes are public; there is no family password. Backup and Restore still use a JSON file on this device.
 
-If this device is empty, the public copy is loaded automatically. If both sides have changes, nothing is overwritten until you choose **Refresh from online** or **Upload this device**.
+If two devices change different sets or sessions around the same time, each record is kept by its newer `updatedAt` (then `createdAt`). A delete stays deleted when the other copy has not edited that record. Voice settings follow the device that changed them.
 
 The Worker URL defaults to `https://letterbench-api.eyeshadow-lee.workers.dev`. Set `VITE_LETTERBENCH_API` to point a build at a different Worker.
 
 ### Worker
 
-`letterbench-api` is already deployed. Public reads are at `https://letterbench-api.eyeshadow-lee.workers.dev`. The KV namespace `letterbench-store` already exists; `worker/wrangler.toml` binds it as `STORE` with id `1af14f4ad2ca4bb28bd5b84cd42cbb76`.
+`letterbench-api` is already deployed. Public reads and writes are at `https://letterbench-api.eyeshadow-lee.workers.dev`. The KV namespace `letterbench-store` already exists; `worker/wrangler.toml` binds it as `STORE` with id `1af14f4ad2ca4bb28bd5b84cd42cbb76`.
 
-`FAMILY_PASSWORD` is set with `npx wrangler secret put FAMILY_PASSWORD` or in the Cloudflare dashboard. Never commit the password, a token, or the store contents. CORS allows `https://jzkitchen.github.io`.
+Never commit a token or the store contents. CORS allows `https://jzkitchen.github.io`. The updated Worker source in this repo still needs to be deployed before public writes are live.
 
 ## Develop
 

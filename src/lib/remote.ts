@@ -1,4 +1,3 @@
-import { PASSWORD_HEADER } from "./api-config";
 import { parseBackup, type BackupFile } from "./backup";
 import { DEFAULT_PREFS } from "./prefs";
 
@@ -31,18 +30,10 @@ export function readRemoteBackup(input: unknown): BackupFile | null {
   }
 }
 
-export async function putRemote(
-  url: string,
-  backup: BackupFile,
-  password: string,
-  fetcher: typeof fetch = fetch,
-): Promise<number> {
+export async function putRemote(url: string, backup: BackupFile, fetcher: typeof fetch = fetch): Promise<number> {
   const response = await fetcher(url, {
     method: "PUT",
-    headers: {
-      "content-type": "application/json",
-      [PASSWORD_HEADER]: password,
-    },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify(backup),
   });
   return response.status;
