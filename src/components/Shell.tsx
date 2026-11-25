@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { SyncNotice } from "./SyncNotice";
 
 export function Shell({ children }: { children: ReactNode }) {
   return (
@@ -9,7 +10,10 @@ export function Shell({ children }: { children: ReactNode }) {
           Letterbench
         </Link>
       </header>
-      <main className="mx-auto w-full max-w-2xl px-5 pb-16">{children}</main>
+      <main className="mx-auto w-full max-w-2xl px-5 pb-16">
+        <SyncNotice />
+        {children}
+      </main>
     </div>
   );
 }

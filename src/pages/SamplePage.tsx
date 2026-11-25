@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { PracticeBoard } from "../components/PracticeBoard";
 import { Shell } from "../components/Shell";
 import { readPrefs, writePrefs } from "../lib/prefs";
+import { schedulePush } from "../lib/sync-client";
 import { grade, shuffle } from "../lib/puzzle";
 import { SAMPLE_PROMPTS } from "../lib/sample";
 import type { Attempt, Prefs } from "../lib/types";
@@ -33,6 +34,7 @@ export function SamplePage() {
           onPrefs={(next) => {
             setPrefs(next);
             writePrefs(next);
+            schedulePush();
           }}
           onAttempt={async (input) => {
             const prompt = prompts[input.position] ?? "";

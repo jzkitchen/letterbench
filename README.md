@@ -4,7 +4,7 @@ English dictation. Listen to a word or sentence, then tap the letters.
 
 **Live site:** https://jzkitchen.github.io/letterbench/
 
-The app is a static PWA. Sets, in-progress sessions, results, and voice settings stay on this device. Nothing is sent to a server.
+The app is a static PWA. Sets, in-progress sessions, results, and voice settings stay on this device. A family password can also copy that same backup to an online store. A sample round is never saved.
 
 ## Import a backup
 
@@ -79,6 +79,22 @@ On import, a session listed in both `sessions` and `results` is kept from `sessi
 - If IndexedDB is blocked, the same snapshot is kept in `localStorage` key `letterbench-store`.
 
 Deleting a set removes its unfinished session and leaves finished results in place.
+
+The home set list is newest first: `updatedAt`, then `createdAt`.
+
+## Online copy
+
+Reads are public. Writes send the header `X-Family-Password`. The Worker compares it with the `FAMILY_PASSWORD` secret. The app asks for that password only when copying a change online, and can remember it on this device. It is not part of the backup file.
+
+If this device is empty, the public copy is loaded automatically. If both sides have changes, nothing is overwritten until you choose **Refresh from online** or **Upload this device**.
+
+The Worker URL defaults to `https://letterbench-api.eyeshadow-lee.workers.dev`. Set `VITE_LETTERBENCH_API` to point a build at a different Worker.
+
+### Worker
+
+`letterbench-api` is already deployed. Public reads are at `https://letterbench-api.eyeshadow-lee.workers.dev`. The KV namespace `letterbench-store` already exists; `worker/wrangler.toml` binds it as `STORE` with id `1af14f4ad2ca4bb28bd5b84cd42cbb76`.
+
+`FAMILY_PASSWORD` is set with `npx wrangler secret put FAMILY_PASSWORD` or in the Cloudflare dashboard. Never commit the password, a token, or the store contents. CORS allows `https://jzkitchen.github.io`.
 
 ## Develop
 

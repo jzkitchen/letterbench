@@ -7,6 +7,7 @@ import { repo } from "../lib/db";
 import { messageOf } from "../lib/format";
 import { writePrefs } from "../lib/prefs";
 import { applyAttempt, resumeIndex } from "../lib/sessions";
+import { pushLocalIfPossible, schedulePush } from "../lib/sync-client";
 import type { Prefs, Session } from "../lib/types";
 
 export function PracticePage() {
@@ -36,13 +37,15 @@ export function PracticePage() {
   function onPrefs(next: Prefs) {
     writePrefs(next);
     setSession((current) => (current ? { ...current, prefs: next } : current));
-    void repo().then((store) =>
-      store.updateSession(sessionId, (current) => ({
-        ...current,
-        prefs: next,
-        updatedAt: new Date().toISOString(),
-      })),
-    );
+    void repo()
+      .then((store) =>
+        store.updateSession(sessionId, (current) => ({
+          ...current,
+          prefs: next,
+          updatedAt: new Date().toISOString(),
+        })),
+      )
+      .then(() => schedulePush());
   }
 
   const start = session ? resumeIndex(session) : -1;
@@ -84,6 +87,7 @@ export function PracticePage() {
             const saved = await store.updateSession(sessionId, (current) => applyAttempt(current, input).session);
             const attempt = saved?.attempts.find((entry) => entry.position === input.position);
             if (!saved || !attempt) return { ok: false, error: "This dictation isn't here." };
+            await pushLocalIfPossible();
             const finished = saved.finishedAt != null;
             return {
               ok: true,
