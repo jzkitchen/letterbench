@@ -7,7 +7,7 @@ import { repo } from "../lib/db";
 import { messageOf } from "../lib/format";
 import { writePrefs } from "../lib/prefs";
 import { applyAttempt, resumeIndex } from "../lib/sessions";
-import { pushLocalIfPossible, schedulePush } from "../lib/sync-client";
+import { scheduleSync, syncNow } from "../lib/sync-client";
 import type { Prefs, Session } from "../lib/types";
 
 export function PracticePage() {
@@ -45,7 +45,7 @@ export function PracticePage() {
           updatedAt: new Date().toISOString(),
         })),
       )
-      .then(() => schedulePush());
+      .then(() => scheduleSync());
   }
 
   const start = session ? resumeIndex(session) : -1;
@@ -87,7 +87,7 @@ export function PracticePage() {
             const saved = await store.updateSession(sessionId, (current) => applyAttempt(current, input).session);
             const attempt = saved?.attempts.find((entry) => entry.position === input.position);
             if (!saved || !attempt) return { ok: false, error: "This dictation isn't here." };
-            await pushLocalIfPossible();
+            await syncNow();
             const finished = saved.finishedAt != null;
             return {
               ok: true,

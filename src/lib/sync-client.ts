@@ -1,158 +1,112 @@
 import { workerUrl, workerUrlIsPlaceholder } from "./api-config";
-import { buildBackup, type BackupFile } from "./backup";
+import { buildBackup } from "./backup";
 import { repo } from "./db";
 import { readPrefs, writePrefs } from "./prefs";
 import { fetchRemote, putRemote } from "./remote";
-import { fingerprint, planSync, type SyncMeta } from "./sync";
-import type { DictationSet, Session } from "./types";
+import { decideSync, type LocalSnapshot } from "./sync";
 
-export const SYNC_META_KEY = "letterbench-sync";
-export const PASSWORD_KEY = "letterbench-family-password";
+export const SYNC_BASE_KEY = "letterbench-sync";
+const OLD_PASSWORD_KEY = "letterbench-family-password";
 export const NOTICE_KEY = "letterbench-sync-notice";
 
-export const LOCAL_ONLY_NOTICE = "Saved on this device only. Enter the family password to copy it online.";
+export type SyncPhase = "unconfigured" | "offline" | "idle" | "updated";
 
-export type SyncPhase = "unconfigured" | "offline" | "idle" | "hydrated" | "uploaded" | "local-only" | "conflict" | "rejected" | "unavailable";
+const OFFLINE_NOTICE = "Offline. This device will sync when you are back online.";
+const UNCONFIGURED_NOTICE = "Online sync is not configured yet. Everything stays on this device.";
 
-export function readFamilyPassword(): string {
-  try {
-    return localStorage.getItem(PASSWORD_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-export function writeFamilyPassword(password: string): void {
-  localStorage.setItem(PASSWORD_KEY, password);
-}
-
-export function clearFamilyPassword(): void {
-  localStorage.removeItem(PASSWORD_KEY);
-}
-
-export function readSyncMeta(): SyncMeta | null {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(SYNC_META_KEY) ?? "") as Partial<SyncMeta>;
-    if (!parsed || typeof parsed.baseExportedAt !== "string" || typeof parsed.fingerprint !== "string") return null;
-    return { baseExportedAt: parsed.baseExportedAt, fingerprint: parsed.fingerprint };
-  } catch {
-    return null;
-  }
-}
-
-function writeSyncMeta(meta: SyncMeta): void {
-  localStorage.setItem(SYNC_META_KEY, JSON.stringify(meta));
-}
-
-export function publishNotice(text: string | null): void {
+function publishNotice(text: string | null): void {
   if (typeof sessionStorage === "undefined") return;
   if (text) sessionStorage.setItem(NOTICE_KEY, text);
   else sessionStorage.removeItem(NOTICE_KEY);
   window.dispatchEvent(new Event("letterbench-sync"));
 }
 
-function rememberSync(backup: BackupFile, sets: DictationSet[], sessions: Session[]): void {
-  writeSyncMeta({
-    baseExportedAt: backup.exportedAt,
-    fingerprint: fingerprint(sets, sessions, readPrefs()),
-  });
+function readBase(): LocalSnapshot | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SYNC_BASE_KEY) ?? "") as Partial<LocalSnapshot>;
+    if (!parsed || !Array.isArray(parsed.sets) || !Array.isArray(parsed.sessions) || !parsed.settings) return null;
+    return { sets: parsed.sets, sessions: parsed.sessions, settings: parsed.settings };
+  } catch {
+    return null;
+  }
 }
 
-export async function applyRemote(backup: BackupFile): Promise<void> {
+function writeBase(snapshot: LocalSnapshot): void {
+  localStorage.setItem(SYNC_BASE_KEY, JSON.stringify(snapshot));
+}
+
+function forgetPassword(): void {
+  try {
+    localStorage.removeItem(OLD_PASSWORD_KEY);
+  } catch {
+    // The password is no longer used.
+  }
+}
+
+async function loadLocal(): Promise<LocalSnapshot> {
   const store = await repo();
-  await store.replaceAll(backup.sets, backup.sessions);
-  writePrefs(backup.settings);
   const [sets, sessions] = await Promise.all([store.loadSets(), store.loadSessions()]);
-  rememberSync(backup, sets, sessions);
-  publishNotice(null);
+  return { sets, sessions, settings: readPrefs() };
 }
 
-async function currentSnapshot(): Promise<{ sets: DictationSet[]; sessions: Session[]; backup: BackupFile }> {
+async function writeLocal(snapshot: LocalSnapshot): Promise<void> {
   const store = await repo();
-  const [sets, sessions] = await Promise.all([store.loadSets(), store.loadSessions()]);
-  const settings = readPrefs();
-  return { sets, sessions, backup: buildBackup(sets, sessions, settings) };
+  await store.replaceAll(snapshot.sets, snapshot.sessions);
+  writePrefs(snapshot.settings);
 }
 
-export async function pushLocal(password: string): Promise<SyncPhase> {
+async function syncBody(): Promise<SyncPhase> {
+  forgetPassword();
   if (workerUrlIsPlaceholder()) {
-    publishNotice("Online sync is not configured yet. This change stays on this device.");
+    publishNotice(UNCONFIGURED_NOTICE);
     return "unconfigured";
   }
-  const { sets, sessions, backup } = await currentSnapshot();
-  try {
-    const status = await putRemote(workerUrl(), backup, password);
-    if (status === 200) {
-      rememberSync(backup, sets, sessions);
-      publishNotice(null);
-      return "uploaded";
-    }
-    if (status === 401) {
-      clearFamilyPassword();
-      publishNotice("That family password was not accepted. The change is still on this device.");
-      return "rejected";
-    }
-    if (status === 503) {
-      publishNotice("The online copy is not ready for writes yet. Saved on this device.");
-      return "unavailable";
-    }
-    publishNotice("Couldn't reach the online copy. Saved on this device.");
-    return "offline";
-  } catch {
-    publishNotice("Couldn't reach the online copy. Saved on this device.");
+  const remote = await fetchRemote(workerUrl());
+  if (!remote) {
+    publishNotice(OFFLINE_NOTICE);
     return "offline";
   }
-}
-
-export async function pushLocalIfPossible(): Promise<SyncPhase> {
-  const password = readFamilyPassword();
-  if (!password) {
-    if (workerUrlIsPlaceholder()) {
-      publishNotice("Online sync is not configured yet. This change stays on this device.");
-      return "unconfigured";
-    }
-    publishNotice(LOCAL_ONLY_NOTICE);
-    return "local-only";
+  const local = await loadLocal();
+  const decision = decideSync(local, remote, readBase());
+  if (decision.kind === "offline") {
+    publishNotice(OFFLINE_NOTICE);
+    return "offline";
   }
-  return pushLocal(password);
+  if (decision.kind === "idle") {
+    writeBase(local);
+    publishNotice(null);
+    return "idle";
+  }
+  if (decision.writeLocal) await writeLocal(decision.merged);
+  if (decision.upload) {
+    const status = await putRemote(workerUrl(), buildBackup(decision.merged.sets, decision.merged.sessions, decision.merged.settings));
+    if (status !== 200) {
+      publishNotice(OFFLINE_NOTICE);
+      return decision.writeLocal ? "updated" : "offline";
+    }
+  }
+  writeBase(decision.merged);
+  publishNotice(null);
+  return decision.writeLocal ? "updated" : "idle";
 }
 
-let pushTimer = 0;
+let chain: Promise<SyncPhase> = Promise.resolve("idle");
 
-export function schedulePush(): void {
+export function syncNow(): Promise<SyncPhase> {
+  const run = chain.then(syncBody, syncBody);
+  chain = run.then(
+    (phase) => phase,
+    () => "offline" as SyncPhase,
+  );
+  return run;
+}
+
+let syncTimer = 0;
+
+export function scheduleSync(): void {
   if (typeof window === "undefined") return;
-  window.clearTimeout(pushTimer);
-  pushTimer = window.setTimeout(() => {
-    void pushLocalIfPossible();
+  window.clearTimeout(syncTimer);
+  syncTimer = window.setTimeout(() => {
+    void syncNow();
   }, 400);
-}
-
-export async function runStartupSync(): Promise<SyncPhase> {
-  if (workerUrlIsPlaceholder()) return "unconfigured";
-  const remote = await fetchRemote(workerUrl());
-  const store = await repo();
-  const [sets, sessions] = await Promise.all([store.loadSets(), store.loadSessions()]);
-  const plan = planSync({ sets, sessions, settings: readPrefs() }, remote, readSyncMeta());
-  if (plan.kind === "offline") return "offline";
-  if (plan.kind === "idle") return "idle";
-  if (plan.kind === "conflict") return "conflict";
-  if (plan.kind === "hydrate") {
-    await applyRemote(plan.backup);
-    return "hydrated";
-  }
-  const password = readFamilyPassword();
-  if (!password) {
-    publishNotice(LOCAL_ONLY_NOTICE);
-    return "local-only";
-  }
-  return pushLocal(password);
-}
-
-export async function refreshFromOnline(): Promise<SyncPhase> {
-  if (workerUrlIsPlaceholder()) return "unconfigured";
-  const remote = await fetchRemote(workerUrl());
-  if (!remote) return "offline";
-  if (remote.exportedAt === "" && remote.sets.length === 0 && remote.sessions.length === 0) return "idle";
-  await applyRemote(remote);
-  return "hydrated";
 }

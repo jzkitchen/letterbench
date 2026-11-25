@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { handleRequest, PASSWORD_HEADER, type Env, type KvStore } from "./index";
+import { handleRequest, type Env, type KvStore } from "./index";
 
 class MemoryKv implements KvStore {
   private readonly values = new Map<string, string>();
@@ -13,11 +13,10 @@ class MemoryKv implements KvStore {
   }
 }
 
-const password = "test-family-password";
-const url = "https://letterbench-api.example.workers.dev/store";
+const url = "https://letterbench-api.eyeshadow-lee.workers.dev/store";
 
 function env(): Env {
-  return { STORE: new MemoryKv(), FAMILY_PASSWORD: password };
+  return { STORE: new MemoryKv() };
 }
 
 const payload = {
@@ -43,29 +42,13 @@ describe("letterbench worker", () => {
     expect(body.exportedAt).toBe("");
   });
 
-  it("rejects a write without the family password and accepts one with it", async () => {
+  it("accepts a public write with no password and serves it back", async () => {
     const store = env();
-    const missing = await handleRequest(
-      new Request(url, { method: "PUT", body: JSON.stringify(payload), headers: { "content-type": "application/json" } }),
-      store,
-    );
-    expect(missing.status).toBe(401);
-
-    const wrong = await handleRequest(
-      new Request(url, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-        headers: { "content-type": "application/json", [PASSWORD_HEADER]: "nope" },
-      }),
-      store,
-    );
-    expect(wrong.status).toBe(401);
-
     const accepted = await handleRequest(
       new Request(url, {
         method: "PUT",
         body: JSON.stringify(payload),
-        headers: { "content-type": "application/json", [PASSWORD_HEADER]: password, origin: "https://jzkitchen.github.io" },
+        headers: { "content-type": "application/json", origin: "https://jzkitchen.github.io" },
       }),
       store,
     );
@@ -77,28 +60,16 @@ describe("letterbench worker", () => {
     expect(body.sets[0]?.title).toBe("Week");
   });
 
-  it("answers the Pages preflight for the password header", async () => {
+  it("answers the Pages preflight", async () => {
     const response = await handleRequest(
       new Request(url, {
         method: "OPTIONS",
-        headers: { origin: "https://jzkitchen.github.io", "access-control-request-headers": PASSWORD_HEADER },
+        headers: { origin: "https://jzkitchen.github.io", "access-control-request-headers": "content-type" },
       }),
       env(),
     );
     expect(response.status).toBe(204);
     expect(response.headers.get("access-control-allow-origin")).toBe("https://jzkitchen.github.io");
-    expect(response.headers.get("access-control-allow-headers")).toContain(PASSWORD_HEADER);
-  });
-
-  it("refuses writes when the secret is not configured", async () => {
-    const response = await handleRequest(
-      new Request(url, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-        headers: { "content-type": "application/json", [PASSWORD_HEADER]: password },
-      }),
-      { STORE: new MemoryKv() },
-    );
-    expect(response.status).toBe(503);
+    expect(response.headers.get("access-control-allow-headers")?.toLowerCase()).toContain("content-type");
   });
 });

@@ -1,7 +1,6 @@
 # Letterbench online store. The Worker letterbench-api and KV namespace
-# letterbench-store are already deployed. Do not put the family password
-# or store contents in this file. Set FAMILY_PASSWORD with
-# `npx wrangler secret put FAMILY_PASSWORD` or the Cloudflare dashboard.
+# letterbench-store are already deployed. Reads and writes are public.
+# Do not commit store contents.
 
 name = "letterbench-api"
 main = "src/index.ts"

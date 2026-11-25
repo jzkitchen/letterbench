@@ -2,17 +2,15 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { BackupPanel } from "../components/BackupPanel";
 import { Loading, Shell } from "../components/Shell";
-import { SyncPanel } from "../components/SyncPanel";
 import { repo } from "../lib/db";
 import { formatDuration, formatWhen, messageOf } from "../lib/format";
 import { summarize } from "../lib/sessions";
-import { pushLocalIfPossible, runStartupSync, type SyncPhase } from "../lib/sync-client";
+import { syncNow } from "../lib/sync-client";
 import type { HomeData } from "../lib/types";
 
 export function HomePage() {
   const [tick, setTick] = useState(0);
   const [data, setData] = useState<HomeData | null>(null);
-  const [syncPhase, setSyncPhase] = useState<SyncPhase>("idle");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -20,15 +18,12 @@ export function HomePage() {
     setError(null);
     repo()
       .then(async (store) => {
-        const phase = await runStartupSync();
+        await syncNow();
         const [sets, sessions] = await Promise.all([store.loadSets(), store.loadSessions()]);
-        return { home: summarize(sets, sessions), phase };
+        return summarize(sets, sessions);
       })
-      .then(({ home, phase }) => {
-        if (!cancel) {
-          setData(home);
-          setSyncPhase(phase);
-        }
+      .then((home) => {
+        if (!cancel) setData(home);
       })
       .catch((reason: unknown) => {
         if (!cancel) setError(messageOf(reason));
@@ -38,11 +33,17 @@ export function HomePage() {
     };
   }, [tick]);
 
+  useEffect(() => {
+    const reload = () => setTick((value) => value + 1);
+    window.addEventListener("letterbench-synced", reload);
+    return () => window.removeEventListener("letterbench-synced", reload);
+  }, []);
+
   async function discard(id: string) {
     try {
       const store = await repo();
       await store.deleteSession(id);
-      await pushLocalIfPossible();
+      await syncNow();
       setTick((value) => value + 1);
     } catch (reason) {
       setError(messageOf(reason));
@@ -144,7 +145,6 @@ export function HomePage() {
               </ul>
             </section>
           ) : null}
-          <SyncPanel phase={syncPhase} onChanged={() => setTick((value) => value + 1)} />
           <BackupPanel onRestored={() => setTick((value) => value + 1)} />
           <Link to="/sample" className="text-sm font-medium text-muted">
             Sample round, not saved

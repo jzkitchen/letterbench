@@ -1,5 +1,4 @@
 export const KV_KEY = "store";
-export const PASSWORD_HEADER = "X-Family-Password";
 const MAX_BYTES = 2_000_000;
 const PAGES_ORIGIN = "https://jzkitchen.github.io";
 
@@ -10,7 +9,6 @@ export interface KvStore {
 
 export interface Env {
   STORE: KvStore;
-  FAMILY_PASSWORD?: string;
 }
 
 const EMPTY_STORE = {
@@ -37,7 +35,7 @@ function corsHeaders(origin: string | null): Headers {
   if (allow) {
     headers.set("access-control-allow-origin", allow);
     headers.set("access-control-allow-methods", "GET, PUT, OPTIONS");
-    headers.set("access-control-allow-headers", `Content-Type, ${PASSWORD_HEADER}`);
+    headers.set("access-control-allow-headers", "Content-Type");
     headers.set("access-control-max-age", "86400");
   }
   return headers;
@@ -48,22 +46,6 @@ function json(body: unknown, status: number, origin: string | null): Response {
   headers.set("content-type", "application/json; charset=utf-8");
   headers.set("cache-control", "no-store");
   return new Response(JSON.stringify(body), { status, headers });
-}
-
-async function digest(value: string): Promise<Uint8Array> {
-  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return new Uint8Array(bytes);
-}
-
-function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
-  if (left.length !== right.length) return false;
-  let diff = 0;
-  for (let index = 0; index < left.length; index += 1) diff |= (left[index] ?? 0) ^ (right[index] ?? 0);
-  return diff === 0;
-}
-
-async function passwordMatches(given: string, expected: string): Promise<boolean> {
-  return sameBytes(await digest(given), await digest(expected));
 }
 
 function isStorePayload(value: unknown): value is Record<string, unknown> {
@@ -95,13 +77,6 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
   }
   if (request.method !== "PUT") return json({ error: "Method not allowed." }, 405, origin);
-
-  const configured = env.FAMILY_PASSWORD ?? "";
-  if (!configured) return json({ error: "Family password is not configured." }, 503, origin);
-  const given = request.headers.get(PASSWORD_HEADER) ?? "";
-  if (!given || !(await passwordMatches(given, configured))) {
-    return json({ error: "Family password required." }, 401, origin);
-  }
 
   const raw = await request.text();
   if (raw.length > MAX_BYTES) return json({ error: "That backup is too large." }, 413, origin);

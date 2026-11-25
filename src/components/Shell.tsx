@@ -1,8 +1,24 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { syncNow } from "../lib/sync-client";
 import { SyncNotice } from "./SyncNotice";
 
 export function Shell({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    const run = () => {
+      if (document.visibilityState === "hidden") return;
+      void syncNow().then((phase) => {
+        if (phase === "updated") window.dispatchEvent(new Event("letterbench-synced"));
+      });
+    };
+    document.addEventListener("visibilitychange", run);
+    window.addEventListener("focus", run);
+    return () => {
+      document.removeEventListener("visibilitychange", run);
+      window.removeEventListener("focus", run);
+    };
+  }, []);
+
   return (
     <div className="min-h-dvh bg-paper text-ink">
       <header className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3 px-5 py-5">
